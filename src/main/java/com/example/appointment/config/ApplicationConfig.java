@@ -1,5 +1,7 @@
 package com.example.appointment.config;
-import com.example.appointment.repository.EmployeeRepo;
+
+import com.example.appointment.repository.DoctorRepo;
+import com.example.appointment.repository.ReceptionistRepo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,14 +13,21 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 @Configuration
 @RequiredArgsConstructor
 public class ApplicationConfig {
-    private final EmployeeRepo employeeRep;
+
+    private final DoctorRepo doctorRepo;
+    private final ReceptionistRepo receptionistRepo;
+
     @Bean
-    public UserDetailsService userDetailsService(){
-        return username -> employeeRep.findByUsername(username).orElseThrow(()->new UsernameNotFoundException("username not found"));
+    public UserDetailsService userDetailsService() {
+        return username -> doctorRepo.findByUsername(username)
+                .map(user -> (org.springframework.security.core.userdetails.UserDetails) user)
+                .or(() -> receptionistRepo.findByUsername(username)
+                        .map(user -> (org.springframework.security.core.userdetails.UserDetails) user))
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
     }
 
     @Bean
-    public AuthenticationManager authenticationManager (AuthenticationConfiguration config){
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 }

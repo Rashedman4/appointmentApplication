@@ -30,7 +30,7 @@ public abstract class Employee extends Person implements UserDetails {
         setPassword(password);
         setRole(role);
     }
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String username;
     @Column(nullable = false)
     private String password;

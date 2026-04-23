@@ -2,6 +2,7 @@ package com.example.appointment.error;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -58,6 +59,19 @@ public class GlobalExceptionHandler {
                 Map.of()
         );
         return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiError> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
+        ApiError body = new ApiError(
+                Instant.now(),
+                401,
+                "Unauthorized",
+                ex.getMessage(),
+                request.getRequestURI(),
+                Map.of()
+        );
+        return ResponseEntity.status(401).body(body);
     }
 
     @ExceptionHandler(BadRequestException.class)

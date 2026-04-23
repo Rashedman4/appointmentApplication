@@ -2,6 +2,7 @@ package com.example.appointment.controllers.rest;
 
 import com.example.appointment.filter.DoctorFilter;
 import com.example.appointment.model.dto.human.DoctorDto;
+import com.example.appointment.model.dto.human.DoctorRegisterDto;
 import com.example.appointment.model.dto.requests.doctor.DoctorCreationRequest;
 import com.example.appointment.model.dto.requests.doctor.DoctorUpdateRequest;
 import com.example.appointment.service.interfaces.DoctorServiceInterface;

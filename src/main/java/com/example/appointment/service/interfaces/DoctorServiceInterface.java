@@ -9,7 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 public interface DoctorServiceInterface {
-    DoctorRegisterDto create(DoctorCreationRequest doctor);
+    DoctorDto create(DoctorCreationRequest doctor);
     DoctorDto update(Long id, DoctorUpdateRequest doctor);
     DoctorDto getByID(Long id);
     Page<DoctorDto> getAll(DoctorFilter filter, Pageable pageable);
