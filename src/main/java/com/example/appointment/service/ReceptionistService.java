@@ -11,6 +11,7 @@ import com.example.appointment.repository.DoctorRepo;
 import com.example.appointment.repository.ReceptionistRepo;
 import com.example.appointment.service.interfaces.ReceptionistServiceInterface;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ReceptionistService implements ReceptionistServiceInterface {
     private final ReceptionistRepo receptionistRepository;
     private final DoctorRepo doctorRepo;
@@ -27,17 +29,20 @@ public class ReceptionistService implements ReceptionistServiceInterface {
 
     @Override
     public ReceptionistDto create(ReceptionistCreationRequest receptionistReq) {
+        log.info("Attempting to create a new receptionist with username: {}", receptionistReq.username());
         validateReceptionistUniqueness(receptionistReq.username(), receptionistReq.email(), null);
 
         Receptionist receptionist = new Receptionist(
                 receptionistReq.fName(), receptionistReq.lName(), receptionistReq.email(), receptionistReq.phoneNumber(), receptionistReq.gender(),
                 receptionistReq.username(), passwordEncoder.encode(receptionistReq.password()), receptionistReq.deskNumber()
         );
+        log.info("Successfully created receptionist with ID: {} and Desk Number: {}", receptionist.getId(), receptionist.getDeskNumber());
         return ToDTo.receptionistToDto(receptionistRepository.save(receptionist));
     }
 
     @Override
     public ReceptionistDto update(Long id, ReceptionistUpdateRequest receptionistReq) {
+        log.info("Updating receptionist profile for ID: {}", id);
         Receptionist existing = receptionistRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Receptionist not found with id: " + id));
 
@@ -51,15 +56,19 @@ public class ReceptionistService implements ReceptionistServiceInterface {
         if (receptionistReq.username() != null) existing.setUsername(receptionistReq.username());
         if (receptionistReq.password() != null) existing.setPassword(passwordEncoder.encode(receptionistReq.password()));
         if (receptionistReq.deskNumber() != null) existing.setDeskNumber(receptionistReq.deskNumber());
-
+        log.info("Successfully updated receptionist ID: {}", id);
         return ToDTo.receptionistToDto(receptionistRepository.save(existing));
     }
 
     @Override
     @Transactional(readOnly = true)
     public ReceptionistDto getById(Long id) {
-        return ToDTo.receptionistToDto(receptionistRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Receptionist not found with id: " + id)));
+        return receptionistRepository.findById(id)
+                .map(ToDTo::receptionistToDto)
+                .orElseThrow(() -> {
+                    log.warn("Search failed: No receptionist found with ID: {}", id);
+                    return new NotFoundException("Receptionist not found with id: " + id);
+                });
     }
 
     @Override
@@ -71,8 +80,12 @@ public class ReceptionistService implements ReceptionistServiceInterface {
     @Override
     public void delete(Long id) {
         Receptionist receptionist = receptionistRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Receptionist not found with id: " + id));
+                .orElseThrow(() -> {
+                    log.error("Delete failed: Receptionist ID {} does not exist", id);
+                    return new NotFoundException("Receptionist not found with id: " + id);
+                });
         receptionistRepository.delete(receptionist);
+        log.info("Receptionist with ID: {} has been deleted", id);
     }
 
     private void validateReceptionistUniqueness(String username, String email, Long currentReceptionistId) {

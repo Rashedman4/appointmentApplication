@@ -14,6 +14,7 @@ import com.example.appointment.repository.ReceptionistRepo;
 import com.example.appointment.service.interfaces.DoctorServiceInterface;
 import com.example.appointment.specification.DoctorSpecification;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Service
 @Transactional
+@Slf4j
 public class DoctorService implements DoctorServiceInterface {
     private final DoctorRepo doctorRepo;
     private final ReceptionistRepo receptionistRepo;
@@ -30,6 +32,7 @@ public class DoctorService implements DoctorServiceInterface {
 
     @Override
     public DoctorDto create(DoctorCreationRequest doctor) {
+        log.info("Attempting to create a new doctor with email: {}", doctor.email());
         validateDoctorUniqueness(doctor.username(), doctor.email(), doctor.licenseNumber(), null);
 
         Doctor savedDoctor = doctorRepo.save(new Doctor(
@@ -37,14 +40,18 @@ public class DoctorService implements DoctorServiceInterface {
                 doctor.gender(), doctor.username(), passwordEncoder.encode(doctor.password()),
                 doctor.specialization(), doctor.licenseNumber(), doctor.startWorkingHour(), doctor.endingWorkingHour()
         ));
-
+        log.info("Successfully created doctor with ID: {}", savedDoctor.getId());
         return ToDTo.doctorToDto(savedDoctor);
     }
 
     @Override
     public DoctorDto update(Long id, DoctorUpdateRequest updateReq) {
+        log.info("Updating doctor profile for ID: {}", id);
         Doctor doctor = doctorRepo.findById(id)
-                .orElseThrow(() -> new NotFoundException("No Doctor Found"));
+                .orElseThrow(() -> {
+                    log.error("Update failed: Doctor with ID {} not found", id);
+                    return new NotFoundException("No Doctor Found");
+                });
 
         validateDoctorUniqueness(updateReq.username(), updateReq.email(), updateReq.licenseNumber(), id);
 
@@ -59,14 +66,18 @@ public class DoctorService implements DoctorServiceInterface {
         if (updateReq.licenseNumber() != null) doctor.setLicenseNumber(updateReq.licenseNumber());
         if (updateReq.startWorkingHour() != null) doctor.setStartWorkingHour(updateReq.startWorkingHour());
         if (updateReq.endingWorkingHour() != null) doctor.setEndingWorkingHour(updateReq.endingWorkingHour());
-
+        log.info("Successfully updated doctor with ID: {}", id);
         return ToDTo.doctorToDto(doctorRepo.save(doctor));
     }
 
     @Override
     public DoctorDto getByID(Long id) {
-        Doctor doctor = doctorRepo.findById(id).orElseThrow(() -> new NotFoundException("No Doctor Found"));
-        return ToDTo.doctorToDto(doctor);
+        return doctorRepo.findById(id)
+                .map(ToDTo::doctorToDto)
+                .orElseThrow(() -> {
+                    log.warn("Search failed: No doctor found with ID: {}", id);
+                    return new NotFoundException("No Doctor Found");
+                });
     }
 
     @Override
@@ -76,8 +87,12 @@ public class DoctorService implements DoctorServiceInterface {
 
     @Override
     public void delete(Long id) {
-        Doctor doctor = doctorRepo.findById(id).orElseThrow(() -> new NotFoundException("No Doctor Found"));
+        Doctor doctor = doctorRepo.findById(id).orElseThrow(() -> {
+            log.error("Delete failed: Doctor ID {} does not exist", id);
+            return new NotFoundException("No Doctor Found");
+        });
         doctorRepo.delete(doctor);
+        log.info("Deleted doctor with ID: {}", id);
     }
 
     private void validateDoctorUniqueness(String username, String email, String licenseNumber, Long currentDoctorId) {
@@ -86,6 +101,7 @@ public class DoctorService implements DoctorServiceInterface {
                     ? doctorRepo.existsByUsername(username)
                     : doctorRepo.existsByUsernameAndIdNot(username, currentDoctorId);
             if (usernameTakenByDoctor || receptionistRepo.existsByUsername(username)) {
+                log.warn("Validation failed: Username '{}' is already taken", username);
                 throw new BadRequestException("Username is already taken");
             }
         }
@@ -95,6 +111,7 @@ public class DoctorService implements DoctorServiceInterface {
                     ? doctorRepo.existsByEmail(email)
                     : doctorRepo.existsByEmailIgnoreCaseAndIdNot(email, currentDoctorId);
             if (emailTakenByDoctor || receptionistRepo.existsByEmail(email)) {
+                log.warn("Validation failed: Email '{}' is already taken", email);
                 throw new BadRequestException("Email is already in use");
             }
         }
@@ -104,6 +121,7 @@ public class DoctorService implements DoctorServiceInterface {
                     ? doctorRepo.existsByLicenseNumber(licenseNumber)
                     : doctorRepo.existsByLicenseNumberIgnoreCaseAndIdNot(licenseNumber, currentDoctorId);
             if (licenseTaken) {
+                log.warn("Validation failed: License Number '{}' is already taken", licenseNumber);
                 throw new BadRequestException("License number is already in use");
             }
         }

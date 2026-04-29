@@ -28,6 +28,7 @@ public abstract class Person extends BaseEntity {
     private String email;
 
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private Gender gender=Gender.MALE;
 
     @Column(nullable = false)

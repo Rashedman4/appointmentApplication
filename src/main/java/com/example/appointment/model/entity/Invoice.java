@@ -27,8 +27,10 @@ public class Invoice extends BaseEntity{
     @Column
     private LocalDate issueDate;
     @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
     private PaymentStatus paymentStatus;
     @Column
+    @Enumerated(EnumType.STRING)
     private PaymentMethod paymentMethod;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "patient_id",nullable = false)

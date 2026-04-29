@@ -19,6 +19,7 @@ import com.example.appointment.service.interfaces.InvoiceServiceInterface;
 import com.example.appointment.specification.InvoiceSpecification;
 import com.example.appointment.utils.Calculations;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +30,7 @@ import java.math.BigDecimal;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class InvoiceService implements InvoiceServiceInterface {
     private final InvoiceRepo invoiceRepository;
     private final AppointmentRepo appointmentRepository;
@@ -38,6 +40,8 @@ public class InvoiceService implements InvoiceServiceInterface {
     @Override
     @Transactional
     public InvoiceDto create(InvoiceCreationRequest invoiceReq) {
+        log.info("Creating invoice for Patient ID: {}, Doctor ID: {}, Appointment ID: {}",
+                invoiceReq.patientId(), invoiceReq.doctorId(), invoiceReq.appointmentId());
         Patient patient= patientRepository.findById(invoiceReq.patientId()).orElseThrow(()->new NotFoundException("Patient not found with id "+invoiceReq.patientId()));
         Doctor doctor=doctorRepository.findById(invoiceReq.doctorId()).orElseThrow(()->new NotFoundException("Doctor Not Found with id "+invoiceReq.doctorId()));
         Appointment appointment=appointmentRepository.findById(invoiceReq.appointmentId()).orElseThrow(()->new NotFoundException("Appointment Not Found with id "+invoiceReq.appointmentId()));
@@ -50,6 +54,7 @@ public class InvoiceService implements InvoiceServiceInterface {
 
         Invoice invoice=new Invoice(overAllAmount,invoiceReq.doctorFee(), invoiceReq.discount(), PaymentStatus.PENDING,null, invoiceReq.issueDate(), doctor,patient,appointment);
 
+        log.info("Invoice {} created successfully with status PENDING", invoice.getId());
 
         return ToDTo.invoiceToDto(invoiceRepository.save(invoice));
     }
@@ -59,8 +64,12 @@ public class InvoiceService implements InvoiceServiceInterface {
     @Override
     @Transactional(readOnly = true)
     public InvoiceDto getById(Long id) {
-        return ToDTo.invoiceToDto(invoiceRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + id)));
+        return invoiceRepository.findById(id)
+                .map(ToDTo::invoiceToDto)
+                .orElseThrow(() -> {
+                    log.warn("Invoice with ID {} requested but not found", id);
+                    return new NotFoundException("Invoice not found with id: " + id);
+                });
     }
 
     @Override
@@ -75,8 +84,12 @@ public class InvoiceService implements InvoiceServiceInterface {
     @Override
     public void delete(Long id) {
         Invoice invoice = invoiceRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + id));
+                .orElseThrow(() -> {
+                    log.error("Delete failed: Invoice {} does not exist", id);
+                    return new NotFoundException("Invoice not found with id: " + id);
+                });
         invoiceRepository.delete(invoice);
+        log.info("Invoice {} has been permanently deleted", id);
     }
 
     @Override

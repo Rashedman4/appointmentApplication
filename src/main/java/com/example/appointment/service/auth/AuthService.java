@@ -13,6 +13,7 @@ import com.example.appointment.model.entity.human.Receptionist;
 import com.example.appointment.repository.DoctorRepo;
 import com.example.appointment.repository.ReceptionistRepo;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AuthService {
 
     private final DoctorRepo doctorRepo;
@@ -31,6 +33,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
 
     public AuthenticationResponse registerDoctor(DoctorCreationRequest request) {
+        log.info("Attempting to register doctor with username: {}", request.username());
         ensureUsernameAvailable(request.username());
         ensureEmailAvailable(request.email());
         ensureLicenseNumberAvailable(request.licenseNumber());
@@ -50,10 +53,12 @@ public class AuthService {
         );
 
         Doctor savedDoctor = doctorRepo.save(doctor);
+        log.info("Doctor registered successfully with ID: {}", savedDoctor.getId());
         return buildAuthResponse(savedDoctor);
     }
 
     public AuthenticationResponse registerReceptionist(ReceptionistCreationRequest request) {
+        log.info("Attempting to register receptionist with username: {}", request.username());
         ensureUsernameAvailable(request.username());
         ensureEmailAvailable(request.email());
 
@@ -69,16 +74,19 @@ public class AuthService {
         );
 
         Receptionist savedReceptionist = receptionistRepo.save(receptionist);
+        log.info("Receptionist registered successfully with ID: {}", savedReceptionist.getId());
         return buildAuthResponse(savedReceptionist);
     }
 
     @Transactional(readOnly = true)
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
+        log.info("Authentication attempt for user: {}", request.username());
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password())
         );
 
         Employee employee = findByUsername(request.username());
+        log.info("User {} authenticated successfully with role: {}", employee.getUsername(), employee.getRole());
         return buildAuthResponse(employee);
     }
 
@@ -87,10 +95,14 @@ public class AuthService {
         return doctorRepo.findByUsername(username)
                 .map(Employee.class::cast)
                 .or(() -> receptionistRepo.findByUsername(username).map(Employee.class::cast))
-                .orElseThrow(() -> new NotFoundException("User not found"));
+                .orElseThrow(() -> {
+                    log.error("Security context error: User {} not found in any repository", username);
+                    return new NotFoundException("User not found");
+                });
     }
 
     private AuthenticationResponse buildAuthResponse(Employee employee) {
+        log.info("Generating JWT token for user: {}", employee.getUsername());
         String jwtToken = jwtService.generateToken(employee);
         return new AuthenticationResponse(
                 employee.getId(),

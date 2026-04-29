@@ -21,6 +21,7 @@ import com.example.appointment.repository.ReceptionistRepo;
 import com.example.appointment.service.interfaces.AppointmentServiceInterface;
 import com.example.appointment.specification.AppointmentSpecification;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ import java.util.List;
 
 @RequiredArgsConstructor
 @Service
+@Slf4j
 public class AppointmentService implements AppointmentServiceInterface {
     private final AppointmentRepo appointmentRepo;
     private final PatientRepo patientRepo;
@@ -40,15 +42,28 @@ public class AppointmentService implements AppointmentServiceInterface {
 
 
     public AppointmentDto createAppointment(AppointmentCreateRequest appointmentReq){
+        log.info("Creating appointment: Patient ID {}, Doctor ID {}, Date {}",
+                appointmentReq.patientId(), appointmentReq.doctorId(), appointmentReq.appointmentDate());
         if(appointmentReq.appointmentDate().isBefore(LocalDate.now())){
+            log.warn("Validation failed: Appointment date {} is in the past", appointmentReq.appointmentDate());
             throw new BadRequestException("The Appointment Date is before the current date");
         }
         if(appointmentReq.appointmentStart().isAfter(appointmentReq.appointmentEnd())){
+            log.warn("Validation failed: Start time {} is after end time {}",
+                    appointmentReq.appointmentStart(), appointmentReq.appointmentEnd());
             throw new BadRequestException("The Appointment starting time is after the ending time");
         }
+        Patient patient = patientRepo.findById(appointmentReq.patientId())
+                .orElseThrow(() -> {
+                    log.error("Create failed: Patient {} not found", appointmentReq.patientId());
+                    return new NotFoundException("Patient Not Found.");
+                });
 
-        Patient patient=patientRepo.findById(appointmentReq.patientId()).orElseThrow(()->new NotFoundException("Patient Not Fount."));
-        Doctor doctor=doctorRepo.findById(appointmentReq.doctorId()).orElseThrow(()->new NotFoundException("Doctor Not Fount."));
+        Doctor doctor = doctorRepo.findById(appointmentReq.doctorId())
+                .orElseThrow(() -> {
+                    log.error("Create failed: Doctor {} not found", appointmentReq.doctorId());
+                    return new NotFoundException("Doctor Not Found.");
+                });
         validateDoctorWorkingHours(doctor,appointmentReq.appointmentStart(),appointmentReq.appointmentEnd());
         boolean available = isDoctorAvailable(
                 doctor.getId(),
@@ -69,18 +84,23 @@ public class AppointmentService implements AppointmentServiceInterface {
         }
 
         Appointment appointmentSaved=appointmentRepo.save(appointment);
+        log.info("Successfully created appointment with ID: {}", appointmentSaved.getId());
         return ToDTo.appointmentToDto(appointmentSaved);
     }
 
     public AppointmentDto updateAppointment(Long id, AppointmentUpdateRequest appointmentReq){
+        log.info("Updating appointment ID: {}", id);
         if(appointmentReq.appointmentDate().isBefore(LocalDate.now())){
             throw new BadRequestException("The Appointment Date is before the current date");
         }
         if(appointmentReq.appointmentStart().isAfter(appointmentReq.appointmentEnd())){
             throw new BadRequestException("The Appointment starting time is after the ending time");
         }
-        Appointment appointment=appointmentRepo.findById(id).orElseThrow(()->new NotFoundException("Appointment Not Found."));
 
+        Appointment appointment = appointmentRepo.findById(id).orElseThrow(() -> {
+            log.error("Update failed: Appointment {} not found", id);
+            return new NotFoundException("Appointment Not Found.");
+        });
         boolean hasConflict = appointmentRepo.existsByDoctorIdAndAppointmentDateAndAppointmentStartLessThanAndAppointmentEndGreaterThanAndIdNot(
                         appointment.getDoctor().getId(),
                         appointmentReq.appointmentDate(),
@@ -90,6 +110,7 @@ public class AppointmentService implements AppointmentServiceInterface {
                 );
 
         if (hasConflict) {
+            log.warn("Update failed for appointment {}: Time conflict for Doctor {}", id, appointment.getDoctor().getId());
             throw new IllegalArgumentException("Doctor is not available at the selected date and time");
         }
 
@@ -103,11 +124,15 @@ public class AppointmentService implements AppointmentServiceInterface {
         appointment.setAppointmentStart(appointmentReq.appointmentStart());
         appointment.setAppointmentEnd(appointmentReq.appointmentEnd());
         appointmentRepo.save(appointment);
+        log.info("Appointment {} updated successfully", id);
         return ToDTo.appointmentToDto(appointment);
     }
     @Transactional(readOnly = true)
     public AppointmentDto getByID(Long id){
-        Appointment appointment=appointmentRepo.findById(id).orElseThrow(()->new NotFoundException("Appointment Not Found."));
+        Appointment appointment=appointmentRepo.findById(id).orElseThrow(()-> {
+            log.warn("Appointment with Id: {} is not Found.",id);
+            return new NotFoundException("Appointment Not Found.");
+        });
         return ToDTo.appointmentToDto(appointment);
 
     }
@@ -124,8 +149,12 @@ public class AppointmentService implements AppointmentServiceInterface {
 
     @Override
     public void delete(Long id) {
-        Appointment appointment = appointmentRepo.findById(id).orElseThrow(()->new NotFoundException("Appointment Not Found."));
+        Appointment appointment = appointmentRepo.findById(id).orElseThrow(() -> {
+            log.error("Delete failed: Appointment {} not found", id);
+            return new NotFoundException("Appointment Not Found.");
+        });
         appointmentRepo.delete(appointment);
+        log.info("Appointment {} deleted successfully", id);
     }
 
     @Override

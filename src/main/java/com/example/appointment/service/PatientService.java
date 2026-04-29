@@ -11,6 +11,7 @@ import com.example.appointment.repository.PatientRepo;
 import com.example.appointment.service.interfaces.PatientInterface;
 import com.example.appointment.specification.PatientSpecification;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -20,11 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class PatientService implements PatientInterface {
     private final PatientRepo patientRepository;
 
     @Override
     public PatientDto create(PatientCreationRequest patientReq) {
+        log.info("Attempting to register new patient with email: {}", patientReq.email());
         if (patientReq == null) {
             throw new IllegalArgumentException("Patient must not be null");
         }
@@ -34,11 +37,14 @@ public class PatientService implements PatientInterface {
 
         Patient patient=new Patient(patientReq.fName(),patientReq.lName(), patientReq.email(), patientReq.email(),patientReq.gender(),
                 patientReq.bloodType(), patientReq.dateOfBirth(), patientReq.allergy());
+        log.info("Successfully registered patient with ID: {}", patient.getId());
+
         return ToDTo.PatientToDto(patientRepository.save(patient));
     }
 
     @Override
     public PatientDto update(Long id, PatientUpdateRequest patientReq) {
+        log.info("Request to update profile for Patient ID: {}", id);
         if (patientReq == null) {
             throw new IllegalArgumentException("Patient must not be null");
         }
@@ -60,16 +66,19 @@ public class PatientService implements PatientInterface {
         if(patientReq.bloodType()!=null)existing.setBloodType(patientReq.bloodType());
         if(patientReq.allergy()!=null)existing.setAllergy(patientReq.allergy());
         if(patientReq.dateOfBirth()!=null)existing.setDateOfBirth(patientReq.dateOfBirth());
-
+        log.info("Profile updated successfully for Patient ID: {}", id);
         return ToDTo.PatientToDto( patientRepository.save(existing));
     }
 
     @Transactional(readOnly = true)
     @Override
     public PatientDto getById(Long id) {
-        Patient patient=patientRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Patient not found with id: " + id));
-        return ToDTo.PatientToDto(patient);
+        return patientRepository.findById(id)
+                .map(ToDTo::PatientToDto)
+                .orElseThrow(() -> {
+                    log.warn("Search failed: No patient found with ID: {}", id);
+                    return new NotFoundException("Patient not found with id: " + id);
+                });
     }
 
     @Override
@@ -83,8 +92,13 @@ public class PatientService implements PatientInterface {
 
     @Override
     public void delete(Long id) {
-        Patient patient=patientRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Patient not found with id: " + id));
+        Patient patient = patientRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.error("Delete failed: Patient with ID {} does not exist", id);
+                    return new NotFoundException("Patient not found with id: " + id);
+                });
+
         patientRepository.delete(patient);
+        log.info("Patient with ID: {} has been deleted", id);
     }
 }

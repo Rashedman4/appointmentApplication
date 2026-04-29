@@ -15,6 +15,7 @@ import com.example.appointment.repository.DrugRepo;
 import com.example.appointment.repository.PrescriptionRepo;
 import com.example.appointment.service.interfaces.PrescriptionServiceInterface;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class PrescriptionService implements PrescriptionServiceInterface {
     private final PrescriptionRepo prescriptionRepository;
     private final AppointmentRepo appointmentRepository;
@@ -31,12 +33,13 @@ public class PrescriptionService implements PrescriptionServiceInterface {
 
     @Override
     public PrescriptionDto create(PrescriptionCreationRequest prescriptionReq) {
+        log.info("Creating prescription for Appointment ID: {}", prescriptionReq.appointmentId());
         Appointment appointment=appointmentRepository.findById(prescriptionReq.appointmentId()).orElseThrow(()-> new NotFoundException("appointment Not found with id "+prescriptionReq.appointmentId()));
         Prescription prescription=new Prescription(appointment);
         Prescription savedPrescription =prescriptionRepository.save(prescription);
         appointment.setPrescription(prescription);
         appointmentRepository.save(appointment);
-
+        log.info("Prescription ID: {} successfully linked to Appointment ID: {}",prescription.getId(),appointment.getId());
         return ToDTo.prescriptionToDto(savedPrescription);
     }
 
@@ -45,8 +48,12 @@ public class PrescriptionService implements PrescriptionServiceInterface {
     @Override
     @Transactional(readOnly = true)
     public PrescriptionDto getById(Long id) {
-        return ToDTo.prescriptionToDto(prescriptionRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Prescription not found with id: " + id)));
+        return prescriptionRepository.findById(id)
+                .map(ToDTo::prescriptionToDto)
+                .orElseThrow(() -> {
+                    log.warn("Search failed: Prescription ID {} not found", id);
+                    return new NotFoundException("Prescription not found with id: " + id);
+                });
     }
 
     @Override
@@ -58,8 +65,12 @@ public class PrescriptionService implements PrescriptionServiceInterface {
     @Override
     public void delete(Long id) {
         Prescription prescription = prescriptionRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Prescription not found with id: " + id));
+                .orElseThrow(() -> {
+                    log.error("Delete failed: Prescription ID {} not found", id);
+                    return new NotFoundException("Prescription not found with id: " + id);
+                });
         prescriptionRepository.delete(prescription);
+        log.info("Prescription ID: {} has been deleted", id);
     }
 
     @Override

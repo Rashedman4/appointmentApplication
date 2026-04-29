@@ -23,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfiguration {
 
     private static final String ROLE_RECEPTIONIST = "RECEPTIONIST";
+    private static final String ROLE_DOCTOR = "DOCTOR";
     private static final String API_DOCTORS = "/api/doctors/**";
     private static final String API_DRUGS = "/api/drugs/**";
 
@@ -43,27 +44,13 @@ public class SecurityConfiguration {
                                 "/api"
                         ).permitAll()
 
-                        .requestMatchers("/api/medical-records/**", "/api/prescriptions/**").hasRole("DOCTOR")
 
-                        .requestMatchers(
-                                "/api/patients/**",
-                                "/api/appointments/**",
-                                "/api/v1/invoices/**",
-                                "/api/receptionists/**"
-                        ).hasRole(ROLE_RECEPTIONIST)
+                        .requestMatchers("/api/**").hasRole(ROLE_RECEPTIONIST)
 
-                        .requestMatchers(HttpMethod.GET, API_DOCTORS, API_DRUGS)
-                        .hasAnyRole("DOCTOR", ROLE_RECEPTIONIST)
+                        .requestMatchers("/api/medical-records/**", "/api/prescriptions/**").hasRole(ROLE_DOCTOR)
+                        .requestMatchers(HttpMethod.GET, API_DOCTORS, API_DRUGS).hasRole(ROLE_DOCTOR)
 
-                        .requestMatchers(HttpMethod.POST, API_DRUGS).hasRole(ROLE_RECEPTIONIST)
-                        .requestMatchers(HttpMethod.PUT, API_DRUGS).hasRole(ROLE_RECEPTIONIST)
-                        .requestMatchers(HttpMethod.PATCH, API_DRUGS).hasRole(ROLE_RECEPTIONIST)
-                        .requestMatchers(HttpMethod.DELETE, API_DRUGS).hasRole(ROLE_RECEPTIONIST)
-
-                        .requestMatchers(HttpMethod.PUT, API_DOCTORS).hasRole(ROLE_RECEPTIONIST)
-                        .requestMatchers(HttpMethod.DELETE, API_DOCTORS).hasRole(ROLE_RECEPTIONIST)
-
-                        .anyRequest().permitAll()
+                        .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
